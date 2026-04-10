@@ -5,36 +5,161 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>代码合入校验流程图展示</title>
   <style>
+    :root {
+      --bg: #f7f8fa;
+      --text: #1f2937;
+      --muted: #4b5563;
+      --card-bg: #ffffff;
+      --card-border: #e5e7eb;
+      --btn-bg: #ffffff;
+      --btn-border: #d1d5db;
+      --btn-text: #111827;
+      --btn-hover: #f3f4f6;
+    }
+
+    [data-theme="dark"] {
+      --bg: #0b1020;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --card-bg: #111827;
+      --card-border: #374151;
+      --btn-bg: #1f2937;
+      --btn-border: #4b5563;
+      --btn-text: #f3f4f6;
+      --btn-hover: #374151;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       font-family: Arial, "Microsoft YaHei", sans-serif;
       margin: 24px;
-      color: #222;
-      background: #fafafa;
+      color: var(--text);
+      background: var(--bg);
+      transition: background 0.2s ease, color 0.2s ease;
     }
+
     h1 {
+      margin: 0 0 8px;
+    }
+
+    .page-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
       margin-bottom: 8px;
     }
+
     .desc {
-      color: #555;
+      color: var(--muted);
       margin-bottom: 20px;
+      line-height: 1.5;
     }
+
     .card {
-      border: 1px solid #ddd;
-      border-radius: 8px;
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
       padding: 16px;
       margin-bottom: 20px;
-      background: #fff;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+      background: var(--card-bg);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+
+    .card-header h2 {
+      margin: 0;
+      font-size: 20px;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      border: 1px solid var(--btn-border);
+      background: var(--btn-bg);
+      color: var(--btn-text);
+      padding: 6px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    button:hover {
+      background: var(--btn-hover);
+    }
+
+    .diagram-wrap {
+      width: 100%;
+      overflow: auto;
+      border: 1px dashed var(--card-border);
+      border-radius: 8px;
+      padding: 8px;
+    }
+
+    .diagram-view {
+      min-width: 500px;
+    }
+
+    .diagram-view svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      margin: 0 auto;
+    }
+
+    .diagram-source {
+      display: none;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 8px;
     }
   </style>
 </head>
 <body>
-  <h1>代码合入校验流程图</h1>
-  <div class="desc">直接复制 Mermaid 语法到 HTML 页面中的 <code>&lt;pre class="mermaid"&gt;</code> 即可渲染。</div>
+  <div class="page-top">
+    <h1>代码合入校验流程图</h1>
+    <button id="theme-toggle" type="button">切换深色模式</button>
+  </div>
+  <div class="desc">
+    已支持：主题切换、响应式缩放、一键导出 SVG/PNG。<br/>
+    使用方式：将 Mermaid 语法放入 <code>&lt;pre class="diagram-source"&gt;</code>，由脚本渲染到图容器中。
+  </div>
 
-  <div class="card">
-    <h2>泳道版（按层分组）</h2>
-    <pre class="mermaid">
+  <div class="card" data-diagram="lane">
+    <div class="card-header">
+      <h2>泳道版（按层分组）</h2>
+      <div class="toolbar">
+        <button type="button" data-action="zoom-out" data-target="lane">缩小</button>
+        <button type="button" data-action="zoom-reset" data-target="lane">重置</button>
+        <button type="button" data-action="zoom-in" data-target="lane">放大</button>
+        <button type="button" data-action="export-svg" data-target="lane">导出 SVG</button>
+        <button type="button" data-action="export-png" data-target="lane">导出 PNG</button>
+      </div>
+    </div>
+    <div class="diagram-wrap">
+      <div class="diagram-view" id="view-lane"></div>
+    </div>
+    <div class="hint">提示：当图较宽时可横向滚动，放大后仍保持清晰。</div>
+    <pre class="diagram-source" id="src-lane">
 flowchart LR
     subgraph L1[输入层]
         A1[version_meta.json<br/>版本代码信息]
@@ -97,9 +222,21 @@ flowchart LR
     </pre>
   </div>
 
-  <div class="card">
-    <h2>执行顺序版（按步骤编号）</h2>
-    <pre class="mermaid">
+  <div class="card" data-diagram="seq">
+    <div class="card-header">
+      <h2>执行顺序版（按步骤编号）</h2>
+      <div class="toolbar">
+        <button type="button" data-action="zoom-out" data-target="seq">缩小</button>
+        <button type="button" data-action="zoom-reset" data-target="seq">重置</button>
+        <button type="button" data-action="zoom-in" data-target="seq">放大</button>
+        <button type="button" data-action="export-svg" data-target="seq">导出 SVG</button>
+        <button type="button" data-action="export-png" data-target="seq">导出 PNG</button>
+      </div>
+    </div>
+    <div class="diagram-wrap">
+      <div class="diagram-view" id="view-seq"></div>
+    </div>
+    <pre class="diagram-source" id="src-seq">
 flowchart TB
     S0([开始])
 
@@ -120,11 +257,183 @@ flowchart TB
 
   <script type="module">
     import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
-    mermaid.initialize({
-      startOnLoad: true,
-      theme: "default",
-      securityLevel: "loose"
+
+    const diagrams = [
+      { key: "lane", sourceId: "src-lane", viewId: "view-lane", fileName: "merge-verify-lane" },
+      { key: "seq", sourceId: "src-seq", viewId: "view-seq", fileName: "merge-verify-sequence" }
+    ];
+
+    const zoomState = {
+      lane: 1,
+      seq: 1
+    };
+
+    const themeToggleBtn = document.getElementById("theme-toggle");
+    const storedTheme = localStorage.getItem("diagram-theme");
+    let currentTheme = storedTheme === "dark" ? "dark" : "light";
+
+    function updateThemeButtonText() {
+      themeToggleBtn.textContent = currentTheme === "dark" ? "切换浅色模式" : "切换深色模式";
+    }
+
+    function applyThemeAttr() {
+      document.documentElement.setAttribute("data-theme", currentTheme);
+      updateThemeButtonText();
+    }
+
+    function getMermaidTheme() {
+      return currentTheme === "dark" ? "dark" : "default";
+    }
+
+    function sanitizeSvgText(svgText) {
+      let text = svgText;
+      if (!text.includes('xmlns="http://www.w3.org/2000/svg"')) {
+        text = text.replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg"');
+      }
+      return text;
+    }
+
+    function getDiagramByKey(key) {
+      return diagrams.find((item) => item.key === key);
+    }
+
+    function applyZoom(key) {
+      const diagram = getDiagramByKey(key);
+      if (!diagram) return;
+      const view = document.getElementById(diagram.viewId);
+      const svg = view.querySelector("svg");
+      if (!svg) return;
+      const zoom = zoomState[key];
+      svg.style.width = `${Math.max(zoom, 0.2) * 100}%`;
+      svg.style.maxWidth = "none";
+      svg.style.height = "auto";
+    }
+
+    async function renderOne(diagram) {
+      const src = document.getElementById(diagram.sourceId);
+      const view = document.getElementById(diagram.viewId);
+      const code = src.textContent.trim();
+      const renderId = `${diagram.key}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const result = await mermaid.render(renderId, code);
+      view.innerHTML = result.svg;
+      if (typeof result.bindFunctions === "function") {
+        result.bindFunctions(view);
+      }
+      applyZoom(diagram.key);
+    }
+
+    async function renderAll() {
+      mermaid.initialize({
+        startOnLoad: false,
+        securityLevel: "loose",
+        theme: getMermaidTheme(),
+        flowchart: { useMaxWidth: false }
+      });
+      for (const diagram of diagrams) {
+        await renderOne(diagram);
+      }
+    }
+
+    function downloadBlob(fileName, blob) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function exportSvg(key) {
+      const diagram = getDiagramByKey(key);
+      if (!diagram) return;
+      const view = document.getElementById(diagram.viewId);
+      const svg = view.querySelector("svg");
+      if (!svg) return;
+      const raw = sanitizeSvgText(new XMLSerializer().serializeToString(svg));
+      const blob = new Blob([raw], { type: "image/svg+xml;charset=utf-8" });
+      downloadBlob(`${diagram.fileName}.svg`, blob);
+    }
+
+    function exportPng(key) {
+      const diagram = getDiagramByKey(key);
+      if (!diagram) return;
+      const view = document.getElementById(diagram.viewId);
+      const svg = view.querySelector("svg");
+      if (!svg) return;
+
+      const raw = sanitizeSvgText(new XMLSerializer().serializeToString(svg));
+      const svgBlob = new Blob([raw], { type: "image/svg+xml;charset=utf-8" });
+      const url = URL.createObjectURL(svgBlob);
+      const image = new Image();
+
+      image.onload = () => {
+        const rect = svg.getBoundingClientRect();
+        const width = Math.max(1, Math.ceil(rect.width));
+        const height = Math.max(1, Math.ceil(rect.height));
+        const scale = 2;
+        const canvas = document.createElement("canvas");
+        canvas.width = width * scale;
+        canvas.height = height * scale;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          URL.revokeObjectURL(url);
+          return;
+        }
+
+        ctx.scale(scale, scale);
+        ctx.fillStyle = currentTheme === "dark" ? "#0b1020" : "#ffffff";
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(image, 0, 0, width, height);
+
+        canvas.toBlob((blob) => {
+          if (blob) {
+            downloadBlob(`${diagram.fileName}.png`, blob);
+          }
+          URL.revokeObjectURL(url);
+        }, "image/png");
+      };
+
+      image.onerror = () => {
+        URL.revokeObjectURL(url);
+      };
+
+      image.src = url;
+    }
+
+    document.addEventListener("click", async (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const action = target.getAttribute("data-action");
+      const key = target.getAttribute("data-target");
+      if (!action || !key) return;
+
+      if (action === "zoom-in") {
+        zoomState[key] = Math.min((zoomState[key] || 1) + 0.2, 3);
+        applyZoom(key);
+      } else if (action === "zoom-out") {
+        zoomState[key] = Math.max((zoomState[key] || 1) - 0.2, 0.4);
+        applyZoom(key);
+      } else if (action === "zoom-reset") {
+        zoomState[key] = 1;
+        applyZoom(key);
+      } else if (action === "export-svg") {
+        exportSvg(key);
+      } else if (action === "export-png") {
+        exportPng(key);
+      }
     });
+
+    themeToggleBtn.addEventListener("click", async () => {
+      currentTheme = currentTheme === "dark" ? "light" : "dark";
+      localStorage.setItem("diagram-theme", currentTheme);
+      applyThemeAttr();
+      await renderAll();
+    });
+
+    applyThemeAttr();
+    renderAll();
   </script>
 </body>
 </html>
