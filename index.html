@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>代码合入校验流程图展示</title>
+  <style>
+    body {
+      font-family: Arial, "Microsoft YaHei", sans-serif;
+      margin: 24px;
+      color: #222;
+      background: #fafafa;
+    }
+    h1 {
+      margin-bottom: 8px;
+    }
+    .desc {
+      color: #555;
+      margin-bottom: 20px;
+    }
+    .card {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 20px;
+      background: #fff;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    }
+  </style>
+</head>
+<body>
+  <h1>代码合入校验流程图</h1>
+  <div class="desc">直接复制 Mermaid 语法到 HTML 页面中的 <code>&lt;pre class="mermaid"&gt;</code> 即可渲染。</div>
+
+  <div class="card">
+    <h2>泳道版（按层分组）</h2>
+    <pre class="mermaid">
+flowchart LR
+    subgraph L1[输入层]
+        A1[version_meta.json<br/>版本代码信息]
+        A2[requirements_list.json<br/>需求与故障清单]
+        A3[VersionFlow DB<br/>POReport 表]
+        A4[BranchManage DB<br/>proj_branch_changes 表]
+    end
+
+    subgraph L2[入口层]
+        B1[run_verify.py<br/>路径 A: 仅校验]
+        B2[run_version_verify.py<br/>路径 B: 一键流水线]
+        B3[query_version_ids.py<br/>路径 C: 仅导出清单]
+    end
+
+    subgraph L3[核心处理层]
+        C1[main.py<br/>主入口]
+        C2[gerrit_client.py<br/>Gerrit API]
+        C3[verifier.py<br/>校验逻辑]
+        C4[report.py<br/>报告生成]
+    end
+
+    subgraph L4[数据服务层]
+        D1[po_report_db.py<br/>VersionFlow 查询]
+        D2[branch_manage_db.py<br/>BranchManage 查询]
+        D3[rdc_query_work_item.py<br/>RDC 查询]
+        D4[repo_resolver.py<br/>仓库解析]
+    end
+
+    subgraph L5[输出层]
+        E1[merge_verify_summary.txt<br/>文本汇总]
+        E2[merge_verify_summary.html<br/>HTML 表格]
+        E3[merge_verify_detail.md<br/>详细报告]
+        E4[merge_verify_failed_ids.json<br/>未通过单号]
+        E5[调试产物 JSON*4<br/>Git/RDC/BM/Context]
+    end
+
+    A1 --> B1
+    A2 --> B1
+    A3 --> B2
+    A3 --> B3
+    A4 --> B2
+
+    B1 --> C1
+    B2 --> C1
+    B3 --> D1
+
+    D1 --> C1
+    D2 --> C1
+    D4 --> C2
+    C1 --> C2
+    C1 --> C3
+    C1 --> C4
+    D3 --> C4
+
+    C4 --> E1
+    C4 --> E2
+    C4 --> E3
+    C4 --> E4
+    C4 --> E5
+    </pre>
+  </div>
+
+  <div class="card">
+    <h2>执行顺序版（按步骤编号）</h2>
+    <pre class="mermaid">
+flowchart TB
+    S0([开始])
+
+    S1[1. 选择入口脚本<br/>A: run_verify.py<br/>B: run_version_verify.py<br/>C: query_version_ids.py]
+    S2[2. 读取输入数据<br/>version_meta / requirements / DB]
+    S3[3. 汇总版本单号清单<br/>query_version_ids.py + po_report_db.py]
+    S4[4. 进入主流程 main.py]
+    S5[5. 拉取仓库与提交信息<br/>repo_resolver.py + gerrit_client.py]
+    S6[6. 执行校验规则<br/>verifier.py]
+    S7[7. 查询补充数据<br/>branch_manage_db.py / rdc_query_work_item.py]
+    S8[8. 生成报告 report.py]
+    S9[9. 输出产物<br/>txt / html / md / failed_ids / 调试JSON]
+    E0([结束])
+
+    S0 --> S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7 --> S8 --> S9 --> E0
+    </pre>
+  </div>
+
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "default",
+      securityLevel: "loose"
+    });
+  </script>
+</body>
+</html>
