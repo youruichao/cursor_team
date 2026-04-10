@@ -290,7 +290,40 @@ flowchart TB
       if (!text.includes('xmlns="http://www.w3.org/2000/svg"')) {
         text = text.replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg"');
       }
+      if (!text.includes('xmlns:xlink="http://www.w3.org/1999/xlink"')) {
+        text = text.replace("<svg", '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
+      }
       return text;
+    }
+
+    function getSvgSize(svg) {
+      const viewBox = svg.viewBox && svg.viewBox.baseVal ? svg.viewBox.baseVal : null;
+      const widthFromViewBox = viewBox && viewBox.width ? viewBox.width : 0;
+      const heightFromViewBox = viewBox && viewBox.height ? viewBox.height : 0;
+      const widthAttr = Number.parseFloat(svg.getAttribute("width") || "0");
+      const heightAttr = Number.parseFloat(svg.getAttribute("height") || "0");
+      const rect = svg.getBoundingClientRect();
+      const width = Math.max(
+        1,
+        Math.ceil(widthFromViewBox || widthAttr || rect.width || 1)
+      );
+      const height = Math.max(
+        1,
+        Math.ceil(heightFromViewBox || heightAttr || rect.height || 1)
+      );
+      return { width, height };
+    }
+
+    function buildExportSvgPayload(svg) {
+      const cloned = svg.cloneNode(true);
+      const { width, height } = getSvgSize(svg);
+      cloned.setAttribute("width", String(width));
+      cloned.setAttribute("height", String(height));
+      if (!cloned.getAttribute("viewBox")) {
+        cloned.setAttribute("viewBox", `0 0 ${width} ${height}`);
+      }
+      const raw = sanitizeSvgText(new XMLSerializer().serializeToString(cloned));
+      return { raw, width, height };
     }
 
     function getDiagramByKey(key) {
@@ -327,7 +360,11 @@ flowchart TB
         startOnLoad: false,
         securityLevel: "loose",
         theme: getMermaidTheme(),
-        flowchart: { useMaxWidth: false }
+        fontFamily: 'Arial, "Microsoft YaHei", sans-serif',
+        flowchart: {
+          useMaxWidth: false,
+          htmlLabels: false
+        }
       });
       for (const diagram of diagrams) {
         await renderOne(diagram);
@@ -351,27 +388,28 @@ flowchart TB
       const view = document.getElementById(diagram.viewId);
       const svg = view.querySelector("svg");
       if (!svg) return;
-      const raw = sanitizeSvgText(new XMLSerializer().serializeToString(svg));
+      const { raw } = buildExportSvgPayload(svg);
       const blob = new Blob([raw], { type: "image/svg+xml;charset=utf-8" });
       downloadBlob(`${diagram.fileName}.svg`, blob);
     }
 
-    function exportPng(key) {
+    async function exportPng(key) {
       const diagram = getDiagramByKey(key);
       if (!diagram) return;
       const view = document.getElementById(diagram.viewId);
       const svg = view.querySelector("svg");
       if (!svg) return;
 
-      const raw = sanitizeSvgText(new XMLSerializer().serializeToString(svg));
+      const { raw, width, height } = buildExportSvgPayload(svg);
       const svgBlob = new Blob([raw], { type: "image/svg+xml;charset=utf-8" });
       const url = URL.createObjectURL(svgBlob);
       const image = new Image();
-
-      image.onload = () => {
-        const rect = svg.getBoundingClientRect();
-        const width = Math.max(1, Math.ceil(rect.width));
-        const height = Math.max(1, Math.ceil(rect.height));
+      try {
+        await new Promise((resolve, reject) => {
+          image.onload = resolve;
+          image.onerror = reject;
+          image.src = url;
+        });
         const scale = 2;
         const canvas = document.createElement("canvas");
         canvas.width = width * scale;
@@ -387,19 +425,17 @@ flowchart TB
         ctx.fillRect(0, 0, width, height);
         ctx.drawImage(image, 0, 0, width, height);
 
-        canvas.toBlob((blob) => {
-          if (blob) {
-            downloadBlob(`${diagram.fileName}.png`, blob);
-          }
-          URL.revokeObjectURL(url);
-        }, "image/png");
-      };
-
-      image.onerror = () => {
+        const pngBlob = await new Promise((resolve) => {
+          canvas.toBlob(resolve, "image/png");
+        });
+        if (pngBlob) {
+          downloadBlob(`${diagram.fileName}.png`, pngBlob);
+        }
+      } catch (error) {
+        console.error("PNG 导出失败：", error);
+      } finally {
         URL.revokeObjectURL(url);
-      };
-
-      image.src = url;
+      }
     }
 
     document.addEventListener("click", async (event) => {
