@@ -296,6 +296,47 @@ flowchart TB
       return text;
     }
 
+    function inlineTextStyles(sourceSvg, targetSvg) {
+      const srcTexts = [...sourceSvg.querySelectorAll("text, tspan, foreignObject")];
+      const dstTexts = [...targetSvg.querySelectorAll("text, tspan, foreignObject")];
+      const count = Math.min(srcTexts.length, dstTexts.length);
+      for (let i = 0; i < count; i += 1) {
+        const src = srcTexts[i];
+        const dst = dstTexts[i];
+        const style = window.getComputedStyle(src);
+        dst.setAttribute("fill", style.fill || "#111827");
+        dst.setAttribute("font-family", style.fontFamily || 'Arial, "Microsoft YaHei", sans-serif');
+        dst.setAttribute("font-size", style.fontSize || "14px");
+        dst.setAttribute("font-weight", style.fontWeight || "400");
+        dst.setAttribute("font-style", style.fontStyle || "normal");
+        dst.setAttribute("color", style.color || "#111827");
+        if (!dst.getAttribute("fill") || dst.getAttribute("fill") === "none") {
+          dst.setAttribute("fill", "#111827");
+        }
+      }
+    }
+
+    function inlineShapeStyles(sourceSvg, targetSvg) {
+      const selector = "path, rect, polygon, circle, ellipse, line, polyline";
+      const srcShapes = [...sourceSvg.querySelectorAll(selector)];
+      const dstShapes = [...targetSvg.querySelectorAll(selector)];
+      const count = Math.min(srcShapes.length, dstShapes.length);
+      for (let i = 0; i < count; i += 1) {
+        const src = srcShapes[i];
+        const dst = dstShapes[i];
+        const style = window.getComputedStyle(src);
+        if (style.fill && style.fill !== "none") {
+          dst.setAttribute("fill", style.fill);
+        }
+        if (style.stroke && style.stroke !== "none") {
+          dst.setAttribute("stroke", style.stroke);
+        }
+        if (style.strokeWidth && style.strokeWidth !== "0px") {
+          dst.setAttribute("stroke-width", style.strokeWidth);
+        }
+      }
+    }
+
     function getSvgSize(svg) {
       const viewBox = svg.viewBox && svg.viewBox.baseVal ? svg.viewBox.baseVal : null;
       const widthFromViewBox = viewBox && viewBox.width ? viewBox.width : 0;
@@ -314,14 +355,38 @@ flowchart TB
       return { width, height };
     }
 
+    function getExportBackgroundColor() {
+      return currentTheme === "dark" ? "#0b1020" : "#ffffff";
+    }
+
+    function getExportTextColor() {
+      return currentTheme === "dark" ? "#f3f4f6" : "#111827";
+    }
+
     function buildExportSvgPayload(svg) {
       const cloned = svg.cloneNode(true);
+      inlineTextStyles(svg, cloned);
+      inlineShapeStyles(svg, cloned);
+      const textColor = getExportTextColor();
+      const textNodes = cloned.querySelectorAll("text, tspan");
+      for (const node of textNodes) {
+        if (!node.getAttribute("fill") || node.getAttribute("fill") === "none") {
+          node.setAttribute("fill", textColor);
+        }
+      }
       const { width, height } = getSvgSize(svg);
       cloned.setAttribute("width", String(width));
       cloned.setAttribute("height", String(height));
       if (!cloned.getAttribute("viewBox")) {
         cloned.setAttribute("viewBox", `0 0 ${width} ${height}`);
       }
+      const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      bg.setAttribute("x", "0");
+      bg.setAttribute("y", "0");
+      bg.setAttribute("width", String(width));
+      bg.setAttribute("height", String(height));
+      bg.setAttribute("fill", getExportBackgroundColor());
+      cloned.insertBefore(bg, cloned.firstChild);
       const raw = sanitizeSvgText(new XMLSerializer().serializeToString(cloned));
       return { raw, width, height };
     }
@@ -402,39 +467,71 @@ flowchart TB
 
       const { raw, width, height } = buildExportSvgPayload(svg);
       const svgBlob = new Blob([raw], { type: "image/svg+xml;charset=utf-8" });
-      const url = URL.createObjectURL(svgBlob);
-      const image = new Image();
+      const svgUrl = URL.createObjectURL(svgBlob);
       try {
-        await new Promise((resolve, reject) => {
-          image.onload = resolve;
-          image.onerror = reject;
-          image.src = url;
-        });
         const scale = 2;
         const canvas = document.createElement("canvas");
         canvas.width = width * scale;
         canvas.height = height * scale;
         const ctx = canvas.getContext("2d");
         if (!ctx) {
-          URL.revokeObjectURL(url);
           return;
         }
 
         ctx.scale(scale, scale);
-        ctx.fillStyle = currentTheme === "dark" ? "#0b1020" : "#ffffff";
+        ctx.fillStyle = getExportBackgroundColor();
         ctx.fillRect(0, 0, width, height);
-        ctx.drawImage(image, 0, 0, width, height);
 
-        const pngBlob = await new Promise((resolve) => {
-          canvas.toBlob(resolve, "image/png");
-        });
-        if (pngBlob) {
-          downloadBlob(`${diagram.fileName}.png`, pngBlob);
+        let drawn = false;
+        if (typeof window.createImageBitmap === "function") {
+          try {
+            const bitmap = await window.createImageBitmap(svgBlob);
+            ctx.drawImage(bitmap, 0, 0, width, height);
+            if (typeof bitmap.close === "function") {
+              bitmap.close();
+            }
+            drawn = true;
+          } catch (_error) {
+            drawn = false;
+          }
         }
+
+        if (!drawn) {
+          try {
+            const image = new Image();
+            await new Promise((resolve, reject) => {
+              image.onload = resolve;
+              image.onerror = reject;
+              image.src = svgUrl;
+            });
+            ctx.drawImage(image, 0, 0, width, height);
+            drawn = true;
+          } catch (_error) {
+            drawn = false;
+          }
+        }
+
+        if (!drawn) {
+          const { Canvg } = await import("https://cdn.jsdelivr.net/npm/canvg@4.0.2/+esm");
+          const v = Canvg.fromString(ctx, raw, {
+            ignoreDimensions: true,
+            ignoreClear: true
+          });
+          await v.render();
+          drawn = true;
+        }
+
+        const pngDataUrl = canvas.toDataURL("image/png");
+        const a = document.createElement("a");
+        a.href = pngDataUrl;
+        a.download = `${diagram.fileName}.png`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
       } catch (error) {
         console.error("PNG 导出失败：", error);
       } finally {
-        URL.revokeObjectURL(url);
+        URL.revokeObjectURL(svgUrl);
       }
     }
 
