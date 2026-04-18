@@ -224,7 +224,7 @@ flowchart LR
 
   <div class="card" data-diagram="seq">
     <div class="card-header">
-      <h2>执行顺序版（按步骤编号）</h2>
+      <h2>DailyCI 流程（优化版）</h2>
       <div class="toolbar">
         <button type="button" data-action="zoom-out" data-target="seq">缩小</button>
         <button type="button" data-action="zoom-reset" data-target="seq">重置</button>
@@ -238,20 +238,21 @@ flowchart LR
     </div>
     <pre class="diagram-source" id="src-seq">
 flowchart TB
-    S0([开始])
+    A[verifyci 代码提交]
+    B[触发 DailyCI]
+    C[ZTE 全量测试]
+    D[结果通知开发团队]
+    E{ZTS 成功率 > 90%}
+    F[推送 ST 测试]
+    G[ST 测试]
+    H[ZTS 拷机测试<br/>（流程保持不变）]
 
-    S1[1. 选择入口脚本<br/>A: run_verify.py<br/>B: run_version_verify.py<br/>C: query_version_ids.py]
-    S2[2. 读取输入数据<br/>version_meta / requirements / DB]
-    S3[3. 汇总版本单号清单<br/>query_version_ids.py + po_report_db.py]
-    S4[4. 进入主流程 main.py]
-    S5[5. 拉取仓库与提交信息<br/>repo_resolver.py + gerrit_client.py]
-    S6[6. 执行校验规则<br/>verifier.py]
-    S7[7. 查询补充数据<br/>branch_manage_db.py / rdc_query_work_item.py]
-    S8[8. 生成报告 report.py]
-    S9[9. 输出产物<br/>txt / html / md / failed_ids / 调试JSON]
-    E0([结束])
-
-    S0 --> S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7 --> S8 --> S9 --> E0
+    A --> B --> C
+    C --> D
+    C --> H
+    C --> E
+    E -- 是 --> F --> G
+    E -- 否 --> H
     </pre>
   </div>
 
@@ -260,7 +261,7 @@ flowchart TB
 
     const diagrams = [
       { key: "lane", sourceId: "src-lane", viewId: "view-lane", fileName: "merge-verify-lane" },
-      { key: "seq", sourceId: "src-seq", viewId: "view-seq", fileName: "merge-verify-sequence" }
+      { key: "seq", sourceId: "src-seq", viewId: "view-seq", fileName: "dailyci-optimized-flow" }
     ];
 
     const zoomState = {
